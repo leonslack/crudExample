@@ -3,6 +3,7 @@ package com.clever.example.model;
 import com.clever.example.model.abstracts.BaseEntity;
 import lombok.Data;
 import org.hibernate.Hibernate;
+import org.hibernate.annotations.SQLDelete;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
@@ -15,6 +16,7 @@ import java.util.Objects;
 @Data
 @Entity
 @Table(name = "users")
+@SQLDelete(sql = "UPDATE users SET is_deleted = true, deleted_at=now() WHERE id=?")
 public class User extends BaseEntity {
     @Column(name = "name", nullable = false)
     private String name;

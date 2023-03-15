@@ -57,9 +57,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public void deleteUser(long userId) {
-        User userEntity = findByIdOrThrow(userId);
-        userEntity.setIsDeleted(true);
-        repository.save(userEntity);
+        repository.deleteById(userId);
     }
 
     @Override
