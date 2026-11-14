@@ -1,5 +1,7 @@
 package com.clever.example.dto.user;
 
+import com.clever.example.model.Role;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.Period;
@@ -12,6 +14,7 @@ public record UserResponse(
         String cellphone,
         LocalDate birthdate,
         Integer age,
+        Role role,
         Instant createdAt,
         Instant updatedAt
 ) {

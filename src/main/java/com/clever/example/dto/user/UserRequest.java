@@ -1,5 +1,6 @@
 package com.clever.example.dto.user;
 
+import com.clever.example.model.Role;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Past;
@@ -8,12 +9,14 @@ import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
 
-/** Datos para crear un usuario. */
+/** Datos para crear un usuario (solo administradores). Si {@code role} es nulo se asigna USER. */
 public record UserRequest(
         @NotBlank @Size(max = 100) String name,
         @NotBlank @Size(max = 100) String lastName,
         @NotBlank @Email @Size(max = 255) String email,
         @Pattern(regexp = "^\\+?[0-9 ()-]{7,20}$", message = "must be a valid phone number") String cellphone,
-        @Past LocalDate birthdate
+        @Past LocalDate birthdate,
+        @NotBlank @Size(min = 8, max = 72) String password,
+        Role role
 ) {
 }

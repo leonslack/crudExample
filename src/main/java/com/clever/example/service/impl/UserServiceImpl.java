@@ -6,6 +6,7 @@ import com.clever.example.dto.user.UserResponse;
 import com.clever.example.dto.user.UserUpdateRequest;
 import com.clever.example.exception.ConflictException;
 import com.clever.example.exception.ResourceNotFoundException;
+import com.clever.example.model.Role;
 import com.clever.example.model.User;
 import com.clever.example.repository.UserRepository;
 import com.clever.example.service.UserService;
@@ -13,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,7 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository repository;
     private final UserMapper userMapper;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     @Transactional
@@ -30,7 +33,10 @@ public class UserServiceImpl implements UserService {
         if (repository.existsByEmailIgnoreCase(request.email())) {
             throw new ConflictException("Email already in use: " + request.email());
         }
-        return userMapper.toResponse(repository.save(userMapper.toEntity(request)));
+        User user = userMapper.toEntity(request);
+        user.setPassword(passwordEncoder.encode(request.password()));
+        user.setRole(request.role() != null ? request.role() : Role.USER);
+        return userMapper.toResponse(repository.save(user));
     }
 
     @Override
@@ -46,6 +52,9 @@ public class UserServiceImpl implements UserService {
             throw new ConflictException("Email already in use: " + request.email());
         }
         userMapper.updateEntity(request, user);
+        if (request.password() != null) {
+            user.setPassword(passwordEncoder.encode(request.password()));
+        }
         return userMapper.toResponse(repository.saveAndFlush(user));
     }
 
