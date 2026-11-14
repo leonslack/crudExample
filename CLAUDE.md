@@ -10,6 +10,9 @@
   `JWT_SECRET`, `ADMIN_PASSWORD`, datos personales como emails reales) en commits, PRs, código, logs
   ni archivos de configuración. Usar variables de entorno y valores de ejemplo (`admin@example.com`).
 - Antes de hacer commit o crear un PR, revisar que el mensaje y el diff no contengan nada de lo anterior.
+- Las herramientas o integraciones pueden **añadir automáticamente** un pie con el enlace a la sesión.
+  Después de crear o editar un PR, issue o comentario en GitHub, volver a leerlo y, si apareció
+  cualquier dato de sesión, editarlo de inmediato para quitarlo.
 
 ## Proyecto
 
