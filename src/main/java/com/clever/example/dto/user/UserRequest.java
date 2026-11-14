@@ -1,22 +1,19 @@
 package com.clever.example.dto.user;
 
-import lombok.Getter;
-import lombok.Setter;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Past;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
-import java.util.Date;
+import java.time.LocalDate;
 
-@Getter
-@Setter
-public class UserRequest {
-    private long id;
-
-    private String name;
-
-    private String lastName;
-
-    private String email;
-
-    private String cellphone;
-
-    private Date birthdate;
+/** Datos para crear un usuario. */
+public record UserRequest(
+        @NotBlank @Size(max = 100) String name,
+        @NotBlank @Size(max = 100) String lastName,
+        @NotBlank @Email @Size(max = 255) String email,
+        @Pattern(regexp = "^\\+?[0-9 ()-]{7,20}$", message = "must be a valid phone number") String cellphone,
+        @Past LocalDate birthdate
+) {
 }
