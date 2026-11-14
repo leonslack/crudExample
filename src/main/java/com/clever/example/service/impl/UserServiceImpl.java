@@ -1,8 +1,11 @@
 package com.clever.example.service.impl;
 
-import com.clever.example.dto.user.UserDto;
 import com.clever.example.dto.user.UserMapper;
 import com.clever.example.dto.user.UserRequest;
+import com.clever.example.dto.user.UserResponse;
+import com.clever.example.dto.user.UserUpdateRequest;
+import com.clever.example.exception.ConflictException;
+import com.clever.example.exception.ResourceNotFoundException;
 import com.clever.example.model.User;
 import com.clever.example.repository.UserRepository;
 import com.clever.example.service.UserService;
@@ -10,58 +13,55 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
-
-import java.util.Optional;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class UserServiceImpl implements UserService {
 
     private final UserRepository repository;
     private final UserMapper userMapper;
 
     @Override
-    public UserDto createUser(UserRequest request) {
-        Optional<User> user;
-        user = repository.findById(request.getId());
-        if (user.isPresent()) {
-            return userMapper.toDto(user.get());
+    @Transactional
+    public UserResponse createUser(UserRequest request) {
+        if (repository.existsByEmailIgnoreCase(request.email())) {
+            throw new ConflictException("Email already in use: " + request.email());
         }
-
-        return userMapper.toDto(repository.save(userMapper.toEntity(request)));
+        return userMapper.toResponse(repository.save(userMapper.toEntity(request)));
     }
 
     @Override
-    public UserDto findById(long userId) {
-        User userEntity = findByIdOrThrow(userId);
-        return userMapper.toDto(userEntity);
+    public UserResponse findById(long userId) {
+        return userMapper.toResponse(findByIdOrThrow(userId));
+    }
+
+    @Override
+    @Transactional
+    public UserResponse updateUser(long userId, UserUpdateRequest request) {
+        User user = findByIdOrThrow(userId);
+        if (request.email() != null && repository.existsByEmailIgnoreCaseAndIdNot(request.email(), userId)) {
+            throw new ConflictException("Email already in use: " + request.email());
+        }
+        userMapper.updateEntity(request, user);
+        return userMapper.toResponse(repository.saveAndFlush(user));
+    }
+
+    @Override
+    @Transactional
+    public void deleteUser(long userId) {
+        repository.delete(findByIdOrThrow(userId));
+    }
+
+    @Override
+    public Page<UserResponse> findAllUsers(Specification<User> specification, Pageable pageable) {
+        return repository.findAll(specification, pageable).map(userMapper::toResponse);
     }
 
     private User findByIdOrThrow(long userId) {
         return repository.findById(userId)
-                .orElseThrow(() ->
-                        new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
-    }
-
-    @Override
-    public UserDto updateUser(long userId, UserRequest request) {
-        User userEntity = findByIdOrThrow(userId);
-
-        userMapper.updateModel(request, userEntity);
-
-        return userMapper.toDto(repository.save(userEntity));
-    }
-
-    @Override
-    public void deleteUser(long userId) {
-        repository.deleteById(userId);
-    }
-
-    @Override
-    public Page<UserDto> findAllUsers(Pageable pageable, Specification<User> specification) {
-        return repository.findAll(specification, pageable).map(userMapper::toDto);
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id " + userId));
     }
 }
