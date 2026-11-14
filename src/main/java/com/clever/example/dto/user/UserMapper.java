@@ -11,11 +11,14 @@ import org.mapstruct.ReportingPolicy;
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface UserMapper {
 
+    @Mapping(target = "password", ignore = true)
+    @Mapping(target = "role", ignore = true)
     User toEntity(UserRequest request);
 
     @Mapping(target = "age", expression = "java(UserResponse.ageFrom(user.getBirthdate()))")
     UserResponse toResponse(User user);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "password", ignore = true)
     void updateEntity(UserUpdateRequest request, @MappingTarget User user);
 }

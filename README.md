@@ -1,23 +1,43 @@
 # CRUD de usuarios — Spring Boot
 
-API REST de ejemplo con un CRUD de usuarios, borrado lógico, paginación y filtros.
+API REST de ejemplo con un CRUD de usuarios, autenticación JWT, PostgreSQL, migraciones con Flyway,
+borrado lógico, paginación y filtros.
 
 ## Stack
 
-- Java 21
-- Spring Boot 4.1 (Web MVC, Data JPA, Validation)
-- H2 en memoria
+- Java 21 · Spring Boot 4.1 (Web MVC, Data JPA, Validation, Security + OAuth2 Resource Server)
+- PostgreSQL 17 · Flyway
 - MapStruct + Lombok
 - springdoc-openapi (Swagger UI)
+- Testcontainers para las pruebas
+
+## Requisitos
+
+- JDK 21
+- Docker (para la base de datos en desarrollo y para las pruebas)
 
 ## Ejecutar
 
 ```bash
-./mvnw spring-boot:run
+ADMIN_PASSWORD=una-clave-segura ./mvnw spring-boot:run
 ```
 
-- Swagger UI: http://localhost:8080/swagger-ui.html
-- Consola H2: http://localhost:8080/h2-console (JDBC URL `jdbc:h2:mem:clever`, usuario `sa`, sin contraseña)
+Al arrancar con `spring-boot:run`, Spring Boot levanta automáticamente el PostgreSQL de `compose.yaml`
+y Flyway aplica las migraciones de `src/main/resources/db/migration`.
+
+- Swagger UI: http://localhost:8080/swagger-ui.html (botón **Authorize** para pegar el token)
+
+### Variables de entorno
+
+| Variable         | Por defecto                              | Descripción |
+|------------------|------------------------------------------|-------------|
+| `DB_URL`         | `jdbc:postgresql://localhost:5432/crud`  | URL JDBC (ignorada si se usa `compose.yaml`) |
+| `DB_USERNAME`    | `crud`                                   | Usuario de la BD |
+| `DB_PASSWORD`    | `crud`                                   | Contraseña de la BD |
+| `JWT_SECRET`     | *(vacía → clave aleatoria al arrancar)*  | Clave HMAC en Base64, mínimo 32 bytes: `openssl rand -base64 32`. **Obligatoria en producción.** |
+| `JWT_EXPIRATION` | `1h`                                     | Duración del token |
+| `ADMIN_EMAIL`    | `admin@example.com`                      | Email del administrador inicial |
+| `ADMIN_PASSWORD` | *(vacía → no se crea admin)*             | Si se define, se crea el admin al arrancar (si no existe) |
 
 ## Pruebas
 
@@ -25,25 +45,43 @@ API REST de ejemplo con un CRUD de usuarios, borrado lógico, paginación y filt
 ./mvnw test
 ```
 
-## Endpoints
+Las pruebas usan un PostgreSQL real en Docker (Testcontainers), con las mismas migraciones de Flyway.
 
-| Método | Ruta              | Descripción                                   | Respuesta |
-|--------|-------------------|-----------------------------------------------|-----------|
-| POST   | `/v1/users`       | Crea un usuario                               | 201 + `Location` |
-| GET    | `/v1/users/{id}`  | Obtiene un usuario                            | 200 / 404 |
-| PATCH  | `/v1/users/{id}`  | Actualiza solo los campos enviados            | 200 / 404 / 409 |
-| DELETE | `/v1/users/{id}`  | Borrado lógico                                | 204 / 404 |
-| GET    | `/v1/users`       | Lista paginada. Filtros: `name`, `lastName`, `email` (contiene, sin distinguir mayúsculas). Paginación: `page`, `size`, `sort` | 200 |
-
-Ejemplo:
+## Autenticación
 
 ```bash
-curl -X POST localhost:8080/v1/users \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"Ana","lastName":"Pérez","email":"ana@example.com","cellphone":"+57 300 123 4567","birthdate":"1990-05-20"}'
+# 1. Registrarse (rol USER)
+curl -X POST localhost:8080/v1/auth/register -H 'Content-Type: application/json' \
+  -d '{"name":"Ana","lastName":"Pérez","email":"ana@example.com","password":"ana-pass-123"}'
 
-curl 'localhost:8080/v1/users?email=example.com&page=0&size=10&sort=lastName,asc'
+# 2. Login → {"accessToken":"...","tokenType":"Bearer","expiresIn":3600}
+TOKEN=$(curl -s -X POST localhost:8080/v1/auth/login -H 'Content-Type: application/json' \
+  -d '{"email":"ana@example.com","password":"ana-pass-123"}' | jq -r .accessToken)
+
+# 3. Usar el token
+curl localhost:8080/v1/auth/me -H "Authorization: Bearer $TOKEN"
 ```
 
-Los errores se devuelven como `application/problem+json` (RFC 9457); los de validación incluyen
-un objeto `errors` con el mensaje de cada campo.
+El token incluye `sub` (id del usuario), `email` y `roles`.
+
+## Endpoints
+
+| Método | Ruta                 | Acceso                    | Descripción |
+|--------|----------------------|---------------------------|-------------|
+| POST   | `/v1/auth/register`  | Público                   | Registro con rol USER → 201 |
+| POST   | `/v1/auth/login`     | Público                   | Devuelve el token JWT → 200 / 401 |
+| GET    | `/v1/auth/me`        | Autenticado               | Usuario actual |
+| GET    | `/v1/users`          | Autenticado               | Lista paginada. Filtros `name`, `lastName`, `email`; `page`, `size`, `sort` |
+| GET    | `/v1/users/{id}`     | Autenticado               | Obtiene un usuario → 200 / 404 |
+| POST   | `/v1/users`          | ADMIN                     | Crea un usuario (puede indicar `role`) → 201 + `Location` |
+| PATCH  | `/v1/users/{id}`     | ADMIN o el propio usuario | Actualiza solo los campos enviados → 200 / 404 / 409 |
+| DELETE | `/v1/users/{id}`     | ADMIN                     | Borrado lógico → 204 / 404 |
+
+Sin token → 401; sin permisos → 403. Los errores se devuelven como `application/problem+json` (RFC 9457).
+
+## Migraciones (Flyway)
+
+Los cambios de esquema se hacen **solo** con nuevos scripts en `src/main/resources/db/migration`,
+con el nombre `V<n>__descripcion.sql` (por ejemplo `V3__add_address_to_users.sql`).
+Nunca se modifica una migración ya aplicada. Hibernate está en modo `validate`: si una entidad
+no coincide con el esquema, la aplicación no arranca.
